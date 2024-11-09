@@ -1,46 +1,58 @@
-import connect from "@/lib/db";
-import { createResponse } from "@/utils/req";
-import { NextRequest } from "next/server";
-import { ObjectId } from "mongodb";
-import Appointment from "@/lib/models/appointment";
+import connect from "@/lib/db"
+import { createResponse } from "@/utils/req"
+import { NextRequest } from "next/server"
+import { ObjectId } from "mongodb"
+import Appointment from "@/lib/models/appointment"
 
 export const GET = async (req: NextRequest) => {
   try {
-    await connect();
+    await connect()
 
-    const decodedTokenHeader = req.headers.get("x-decoded-token");
+    const decodedTokenHeader = req.headers.get("x-decoded-token")
     if (!decodedTokenHeader) {
-      return createResponse("Unauthorized", false, {}, 401);
+      return createResponse("Unauthorized", false, {}, 401)
     }
 
-    const decodedToken = JSON.parse(decodedTokenHeader);
-    const userId = decodedToken.userId;
+    let decodedToken
+    try {
+      decodedToken = JSON.parse(decodedTokenHeader)
+    } catch (error) {
+      console.log("Invalid token format:", error)
+      return createResponse("Invalid token format", false, {}, 400)
+    }
+
+    const userId = decodedToken.userId
+
+    // Validate if userId is a valid ObjectId string
+    if (!ObjectId.isValid(userId)) {
+      return createResponse("Invalid user ID", false, {}, 400)
+    }
+
     try {
       const appointments = await Appointment.find({
         user_id: new ObjectId(userId),
-      }).lean();
+      }).lean()
+
       const statusCounts = appointments.reverse().reduce(
         (counts, appointment) => {
-          if (appointment.status === 'completed') {
-            counts.completed += 1;
-          } else if (appointment.status === 'cancelled') {
-            counts.cancelled += 1;
-          } else if (appointment.status === 'accepted') {
-            counts.accepted += 1;
-          } else if (appointment.status === 'scheduled') {
-            counts.scheduled += 1;
-          }
-          return counts;
+          counts[appointment.status] = (counts[appointment.status] || 0) + 1
+          return counts
         },
         { completed: 0, cancelled: 0, scheduled: 0, accepted: 0 }
-      );
-      return createResponse("All appointments fetched.", true, { counts: statusCounts, appointments}, 200);
+      )
+
+      return createResponse(
+        "All appointments fetched.",
+        true,
+        { counts: statusCounts, appointments },
+        200
+      )
     } catch (error) {
-      console.log(error);
-      return createResponse("Error getting appointments", false, {}, 500);
+      console.log("Error fetching appointments:", error)
+      return createResponse("Error getting appointments", false, {}, 500)
     }
   } catch (error) {
-    console.log(error);
-    return createResponse("Error getting appointments", false, {}, 500);
+    console.log("Connection error:", error)
+    return createResponse("Error connecting to the database", false, {}, 500)
   }
-};
+}
