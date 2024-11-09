@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"
 import connect from "@/lib/db"
 import { createResponse } from "@/utils/req"
 import { NextRequest } from "next/server"
